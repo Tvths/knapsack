@@ -10,34 +10,55 @@ check_input <- function(x, W) {
   if (!is.numeric(W) || length(W) != 1 || W <= 0) stop("W must be a single positive number")
 }
 
-# ===== R/brute_force_knapsack.R =====
 #' Brute force knapsack
 #'
 #' Solves the 0/1 knapsack problem by checking all 2^n combinations.
 #' @param x A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).
 #' @param W Knapsack capacity (positive number).
+#' @param parallel Logical. If TRUE, the search is split over all detected cores.
 #' @return A list with \code{value} (maximum total value) and \code{elements} (row indices chosen).
 #' @examples
 #' x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))
 #' brute_force_knapsack(x, W = 50)
 #' @export
-brute_force_knapsack <- function(x, W) {
+brute_force_knapsack <- function(x, W, parallel = FALSE) {
   check_input(x, W)
-  n <- nrow(x)
-  best_value <- 0
-  best_elements <- integer(0)
-  for (i in 1:(2^n - 1)) {
-    chosen <- which(intToBits(i)[1:n] == 1)
-    total_w <- sum(x$w[chosen])
-    if (total_w <= W) {
-      total_v <- sum(x$v[chosen])
-      if (total_v > best_value) {
-        best_value <- total_v
-        best_elements <- chosen
+  n <- nrow(x); w <- x$w; v <- x$v
+
+  # tìm phương án tốt nhất trong một đoạn các tổ hợp
+  best_in_range <- function(range) {
+    best_value <- 0; best_elements <- integer(0)
+    for (i in range) {
+      chosen <- which(intToBits(i)[1:n] == 1)
+      if (sum(w[chosen]) <= W) {
+        total_v <- sum(v[chosen])
+        if (total_v > best_value) { best_value <- total_v; best_elements <- chosen }
       }
     }
+    list(value = best_value, elements = best_elements)
   }
-  list(value = round(best_value), elements = best_elements)
+
+  all_i <- 1:(2^n - 1)
+  if (!parallel) {
+    res <- best_in_range(all_i)
+  } else {
+    cores <- parallel::detectCores()
+    if (is.na(cores)) cores <- 1L
+    # R CMD check (--as-cran) chỉ cho dùng tối đa 2 core
+    if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) cores <- min(cores, 2L)
+
+    chunks <- split(all_i, cut(seq_along(all_i), cores, labels = FALSE))
+    if (.Platform$OS.type == "windows") {
+      cl <- parallel::makeCluster(cores)
+      on.exit(parallel::stopCluster(cl))
+      results <- parallel::parLapply(cl, chunks, best_in_range)
+    } else {
+      results <- parallel::mclapply(chunks, best_in_range, mc.cores = cores)
+    }
+    values <- vapply(results, function(r) r$value, numeric(1))
+    res <- results[[which.max(values)]]
+  }
+  list(value = round(res$value), elements = res$elements)
 }
 
 # ===== R/knapsack_dynamic.R =====
