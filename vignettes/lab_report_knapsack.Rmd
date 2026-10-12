@@ -1,0 +1,60 @@
+---
+title: "lab_report_knapsack"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{lab_report_knapsack}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup}
+library(knapsack)
+suppressWarnings(RNGversion(min(as.character(getRversion()), "3.5.3")))
+set.seed(42, kind = "Mersenne-Twister", normal.kind = "Inversion")
+n <- 2000
+knapsack_objects <- data.frame(w = sample(1:4000, size = n, replace = TRUE),
+                               v = runif(n = n, 0, 10000))
+```
+
+## Brute force search
+
+```{r}
+brute_force_knapsack(x = knapsack_objects[1:8, ], W = 3500)
+```
+
+**Question:** How much time does it take to run the algorithm for n = 16 objects?
+
+```{r}
+system.time(brute_force_knapsack(x = knapsack_objects[1:16, ], W = 3500))
+```
+
+Answer: about X seconds. The time doubles for every extra object, since there are 2^n combinations.
+
+## Dynamic programming
+
+```{r}
+knapsack_dynamic(x = knapsack_objects[1:8, ], W = 3500)
+system.time(knapsack_dynamic(x = knapsack_objects[1:500, ], W = 3500))
+```
+
+Answer: about X seconds for n = 500. Time grows as O(W n).
+
+## Greedy heuristic
+
+```{r}
+greedy_knapsack(x = knapsack_objects[1:800, ], W = 3500)
+set.seed(42)
+big <- data.frame(w = sample(1:4000, size = 1e6, replace = TRUE),
+                  v = runif(n = 1e6, 0, 10000))
+system.time(greedy_knapsack(x = big, W = 3500))
+```
+
+Answer: about X seconds for n = 1 000 000. Dominated by the sort, O(n log n).
+
+## Profiling and optimization
+
+Using `profvis`, the bottleneck in `knapsack_dynamic()` was the double `for` loop
+over items and capacities. Replacing the inner loop with a vectorized `pmax()`
+over all capacities reduced the time for n = 500 from about X s to about Y s
+(roughly Z times faster). In the greedy function, using `cumsum()` instead of a
+loop that adds items one by one avoids growing a vector inside a loop.
