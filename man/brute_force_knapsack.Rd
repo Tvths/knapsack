@@ -4,12 +4,14 @@
 \alias{brute_force_knapsack}
 \title{Brute force knapsack}
 \usage{
-brute_force_knapsack(x, W)
+brute_force_knapsack(x, W, parallel = FALSE)
 }
 \arguments{
 \item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
 
 \item{W}{Knapsack capacity (positive number).}
+
+\item{parallel}{Logical. If TRUE, the search is split over all detected cores.}
 }
 \value{
 A list with \code{value} (maximum total value) and \code{elements} (row indices chosen).
