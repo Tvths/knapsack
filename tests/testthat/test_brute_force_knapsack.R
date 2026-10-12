@@ -21,19 +21,24 @@ test_that("Function return correct results.", {
   bfk <- brute_force_knapsack(x = knapsack_objects[1:8,], W = 3500)
   expect_equal(round(bfk$value), 16770)
   expect_true(all(round(bfk$elements) %in% c(5, 8)))
-  
+
   bfk <- brute_force_knapsack(x = knapsack_objects[1:12,], W = 3500)
   expect_equal(round(bfk$value), 16770)
   expect_true(all(round(bfk$elements) %in% c(5, 8)))
-  
+
   bfk <- brute_force_knapsack(x = knapsack_objects[1:8,], W = 2000)
   expect_equal(round(bfk$value), 15428)
   expect_true(all(round(bfk$elements) %in% c(3, 8)))
-  
+
   bfk <- brute_force_knapsack(x = knapsack_objects[1:12,], W = 2000)
   expect_equal(round(bfk$value), 15428)
   expect_true(all(round(bfk$elements) %in% c(3, 8)))
-  
+
   st <- system.time(bfk <- brute_force_knapsack(x = knapsack_objects[1:16,], W = 2000))
   expect_true(as.numeric(st)[2] >= 0.00)
+})
+
+test_that("parallel = TRUE gives the same result", {
+  expect_equal(brute_force_knapsack(knapsack_objects[1:12, ], 2000, parallel = TRUE),
+               brute_force_knapsack(knapsack_objects[1:12, ], 2000))
 })
