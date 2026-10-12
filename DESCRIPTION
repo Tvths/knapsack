@@ -8,3 +8,5 @@ License: MIT + file LICENSE
 Config/roxygen2/version: 8.1.0
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
+URL: https://github.com/Tvths/knapsack
+BugReports: https://github.com/Tvths/knapsack/issues
