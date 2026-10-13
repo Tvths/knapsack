@@ -25,7 +25,6 @@ brute_force_knapsack <- function(x, W, parallel = FALSE) {
   check_input(x, W)
   n <- nrow(x); w <- x$w; v <- x$v
 
-  # tìm phương án tốt nhất trong một đoạn các tổ hợp
   best_in_range <- function(range) {
     best_value <- 0; best_elements <- integer(0)
     for (i in range) {
@@ -44,7 +43,6 @@ brute_force_knapsack <- function(x, W, parallel = FALSE) {
   } else {
     cores <- parallel::detectCores()
     if (is.na(cores)) cores <- 1L
-    # R CMD check (--as-cran) chỉ cho dùng tối đa 2 core
     if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) cores <- min(cores, 2L)
 
     chunks <- split(all_i, cut(seq_along(all_i), cores, labels = FALSE))
@@ -79,7 +77,7 @@ knapsack_dynamic <- function(x, W) {
   for (i in 1:n) {
     m[i + 1, ] <- m[i, ]
     if (w[i] <= W) {
-      idx <- (w[i] + 1):(W + 1)                       # vectorized inner loop
+      idx <- (w[i] + 1):(W + 1)
       m[i + 1, idx] <- pmax(m[i, idx], m[i, idx - w[i]] + v[i])
     }
   }
