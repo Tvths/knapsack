@@ -2,16 +2,17 @@
 % Please edit documentation in R/Knapsack_functions.R
 \name{check_input}
 \alias{check_input}
-\title{Check knapsack input (internal)}
+\title{Validate inputs shared by the knapsack solvers}
 \usage{
 check_input(x, W)
 }
 \arguments{
-\item{x}{data.frame with columns v and w}
+\item{x}{A data frame with exactly two numeric columns, \code{v} (value) and
+\code{w} (weight). Values and weights must be finite and strictly positive.}
 
-\item{W}{knapsack capacity}
+\item{W}{A finite, strictly positive numeric capacity.}
 }
 \description{
-Check knapsack input (internal)
+Validate inputs shared by the knapsack solvers
 }
 \keyword{internal}

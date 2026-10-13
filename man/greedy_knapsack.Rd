@@ -2,21 +2,26 @@
 % Please edit documentation in R/Knapsack_functions.R
 \name{greedy_knapsack}
 \alias{greedy_knapsack}
-\title{Greedy knapsack heuristic}
+\title{Solve the 0/1 knapsack problem with a greedy approximation}
 \usage{
 greedy_knapsack(x, W)
 }
 \arguments{
-\item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
+\item{x}{A data frame with exactly two numeric columns, \code{v} (value) and
+\code{w} (weight). Values and weights must be finite and strictly positive.}
 
-\item{W}{Knapsack capacity (positive number).}
+\item{W}{A finite, strictly positive numeric capacity.}
 }
 \value{
-A list with \code{value} and \code{elements}.
+A list with \code{value}, the total value selected, and \code{elements}, the
+selected row indices. If no item fits, the value is zero and \code{elements}
+is empty.
 }
 \description{
-Sorts items by value per weight and adds them until the next item does not fit.
-Guaranteed to give at least half the optimum (with the modified version), runs in O(n log n).
+Sorts feasible items by value-to-weight ratio, takes the feasible prefix,
+and returns the better of that prefix and the best feasible single item.
+This standard 0/1 knapsack heuristic is O(n log n) and returns at least
+half of the optimal value.
 }
 \examples{
 x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))

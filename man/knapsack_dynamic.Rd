@@ -2,20 +2,24 @@
 % Please edit documentation in R/Knapsack_functions.R
 \name{knapsack_dynamic}
 \alias{knapsack_dynamic}
-\title{Dynamic programming knapsack}
+\title{Solve the 0/1 knapsack problem by dynamic programming}
 \usage{
 knapsack_dynamic(x, W)
 }
 \arguments{
-\item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
+\item{x}{A data frame with exactly two numeric columns, \code{v} (value) and
+\code{w} (weight). Values and weights must be finite and strictly positive.}
 
-\item{W}{Knapsack capacity (positive number).}
+\item{W}{A finite, strictly positive numeric capacity.}
 }
 \value{
-A list with \code{value} and \code{elements}.
+A list with \code{value}, the maximum feasible total value, and
+\code{elements}, the row indices of the selected items.
 }
 \description{
-Solves the 0/1 knapsack problem exactly in O(W n) time (weights must be integers).
+Returns an exact solution for integer weights and an integer capacity.
+Runtime is O(n W), with O(n W) logical backtracking storage and O(W)
+numeric value storage.
 }
 \examples{
 x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))
