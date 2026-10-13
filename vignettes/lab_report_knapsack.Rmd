@@ -10,6 +10,7 @@ vignette: >
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 library(knapsack)
+suppressWarnings(RNGversion(min(as.character(getRversion()), "3.5.3")))
 set.seed(42)
 
 n <- 2000L
@@ -39,6 +40,12 @@ for small inputs and for checking the other algorithms.
 
 ```{r brute-force-example}
 brute_force_knapsack(knapsack_objects[1:8, ], W = 3500)
+
+brute_force_knapsack(knapsack_objects[1:12, ], W = 3500)
+
+brute_force_knapsack(knapsack_objects[1:8, ], W = 2000)
+
+brute_force_knapsack(knapsack_objects[1:12, ], W = 2000)
 ```
 
 For 16 items there are `2^16 - 1` non-empty subsets. The median elapsed time
@@ -89,6 +96,7 @@ for one item at a time with vectorized operations.
 
 ```{r dynamic-example}
 knapsack_dynamic(knapsack_objects[1:8, ], W = 3500)
+
 ```
 
 For the required case of 500 items and capacity 3,500, the following reports
