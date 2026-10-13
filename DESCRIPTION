@@ -1,29 +1,20 @@
 Package: knapsack
-Title: Algorithms for the 0/1 Knapsack Problem
+Title: What the Package Does (One Line, Title Case)
 Version: 0.0.0.9000
-Authors@R: c(
-    person("Zhengyu", "Wang", email = "zhewa470@student.liu.se",
-           role = c("aut", "cre"),
-           comment = c(LiU = "zhewa470", GitHub = "wwwzyccc777")),
-    person("Viet Tien", "Trinh", email = "vietr933@student.liu.se",
-           role = "aut",
-           comment = c(LiU = "vietr933", GitHub = "Tvths"))
-    )
-Description: Solves the 0/1 knapsack problem using exact brute-force and
-    dynamic-programming algorithms, and a fast greedy approximation. The
-    brute-force solver can distribute its search across detected CPU cores.
+Authors@R: 
+    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+Description: What the package does (one paragraph).
 License: MIT + file LICENSE
+Config/roxygen2/version: 8.1.0
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 URL: https://github.com/Tvths/knapsack
 BugReports: https://github.com/Tvths/knapsack/issues
-Imports:
-    parallel
-Suggests:
+Suggests: 
     knitr,
-    profvis,
     rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Config/roxygen2/version: 8.1.0
+Imports: 
+    parallel

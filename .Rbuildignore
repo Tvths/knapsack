@@ -2,5 +2,3 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^\.github$
-^.*\.Rcheck$
-^knapsack_.*\.tar\.gz$

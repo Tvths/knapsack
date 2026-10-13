@@ -1,8 +1,8 @@
 ---
-title: "Knapsack Lab 6 Report"
+title: "lab_report_knapsack"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{lab report knapsack}
+  %\VignetteIndexEntry{lab_report_knapsack}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -12,196 +12,49 @@ library(knapsack)
 suppressWarnings(RNGversion(min(as.character(getRversion()), "3.5.3")))
 set.seed(42, kind = "Mersenne-Twister", normal.kind = "Inversion")
 n <- 2000
-knapsack_objects <- data.frame(
-  w = sample(1:4000, size = n, replace = TRUE),
-  v = runif(n = n, 0, 10000)
-)
-median_elapsed <- function(expr, repetitions = 3L, iterations = 1L) {
-  expression <- substitute(expr)
-  environment <- parent.frame()
-  times <- replicate(repetitions, {
-    system.time(
-      for (i in seq_len(iterations)) eval(expression, envir = environment)
-    )[["elapsed"]] / iterations
-  })
-  median(times)
-}
+knapsack_objects <- data.frame(w = sample(1:4000, size = n, replace = TRUE),
+                               v = runif(n = n, 0, 10000))
 ```
 
-The package solves the 0/1 knapsack problem: choose a subset of items whose
-total weight is at most `W` and whose total value is as large as possible.
-Each function returns the total `value` and the selected row indices in
-`elements`.
-
-## Brute-force search
-
-Brute force checks every subset, so its time complexity is O(2^n). It is exact
-and useful for small inputs and for checking the other algorithms.
+## Brute force search
 
 ```{r}
 brute_force_knapsack(x = knapsack_objects[1:8, ], W = 3500)
 ```
 
-**Question: How long does the algorithm take for n = 16 items?**
-
-The following elapsed time is the median of three runs on the machine that
-builds this vignette. It varies by processor and R version. Doubling the number
-of items roughly doubles the work because the number of subsets doubles for
-each added item.
+**Question:** How much time does it take to run the algorithm for n = 16 objects?
 
 ```{r}
-brute_16_time <- median_elapsed(
-  brute_force_knapsack(x = knapsack_objects[1:16, ], W = 3500)
-)
-data.frame(items = 16, elapsed_seconds = brute_16_time)
+system.time(brute_force_knapsack(x = knapsack_objects[1:16, ], W = 3500))
 ```
+
+Answer: about X seconds. The time doubles for every extra object, since there are 2^n combinations.
 
 ## Dynamic programming
 
-Dynamic programming is exact when weights and capacity are integers. It has
-O(n W) time complexity, where `n` is the number of items and `W` is the
-capacity. The solver updates the value states for all affected capacities at
-once and keeps a logical table for reconstructing the selected items.
-
 ```{r}
 knapsack_dynamic(x = knapsack_objects[1:8, ], W = 3500)
+system.time(knapsack_dynamic(x = knapsack_objects[1:500, ], W = 3500))
 ```
 
-**Question: How long does the algorithm take for n = 500 items?**
-
-```{r}
-dynamic_500_time <- median_elapsed(
-  knapsack_dynamic(x = knapsack_objects[1:500, ], W = 3500),
-  iterations = 20L
-)
-data.frame(items = 500, capacity = 3500,
-           elapsed_seconds = dynamic_500_time)
-```
+Answer: about X seconds for n = 500. Time grows as O(W n).
 
 ## Greedy heuristic
 
-The greedy solver orders feasible items by value per unit weight and takes the
-feasible prefix. It compares that prefix with the best feasible single item,
-which gives a 1/2 approximation guarantee for the 0/1 problem. Sorting
-dominates its O(n log n) running time.
-
 ```{r}
 greedy_knapsack(x = knapsack_objects[1:800, ], W = 3500)
-```
-
-**Question: How long does the algorithm take for n = 1,000,000 items?**
-
-```{r}
 set.seed(42)
-large_objects <- data.frame(
-  w = sample(1:4000, size = 1e6, replace = TRUE),
-  v = runif(n = 1e6, 0, 10000)
-)
-greedy_1m_time <- median_elapsed(
-  greedy_knapsack(x = large_objects, W = 3500)
-)
-data.frame(items = nrow(large_objects), elapsed_seconds = greedy_1m_time)
+big <- data.frame(w = sample(1:4000, size = 1e6, replace = TRUE),
+                  v = runif(n = 1e6, 0, 10000))
+system.time(greedy_knapsack(x = big, W = 3500))
 ```
+
+Answer: about X seconds for n = 1 000 000. Dominated by the sort, O(n log n).
 
 ## Profiling and optimization
 
-We used `profvis` to profile a nested-loop dynamic-programming reference. The
-profile showed the capacity loop as the bottleneck: for each item it performs
-thousands of interpreted R iterations. The optimized solver updates the
-capacity range with vectorized operations instead. It stores one numeric value
-vector instead of a full numeric dynamic-programming table, and a logical
-decision table for reconstructing the solution. For n = 500 and W = 3,500,
-this reduces value-state storage from about 14 MB to about 28 KB; the logical
-backtracking table uses about 1.7 MB.
-
-On our Windows 11 machine with R 4.6.0, the median nested-loop reference time
-was 0.68 seconds and the optimized solver took about 0.006 seconds per call
-(roughly 113 times faster in this run). The required-size timings on that
-machine were about 0.14 seconds for brute force with n = 16, 0.008 seconds for
-dynamic programming with n = 500 and W = 3,500, and 0.03 seconds for greedy
-search with n = 1,000,000. These short timings are machine-specific; the chunks
-recalculate them when the vignette is built.
-
-The benchmark below compares the vectorized implementation with a simple
-nested-loop reference. The reported speedup is machine-specific and is
-calculated from the timings printed by this run.
-
-```{r}
-dynamic_loop_reference <- function(x, W) {
-  n <- nrow(x)
-  table <- matrix(0, nrow = n + 1L, ncol = W + 1L)
-  for (i in seq_len(n)) {
-    table[i + 1L, ] <- table[i, ]
-    if (x$w[[i]] <= W) {
-      for (capacity in seq.int(x$w[[i]], W)) {
-        table[i + 1L, capacity + 1L] <- max(
-          table[i, capacity + 1L],
-          table[i, capacity - x$w[[i]] + 1L] + x$v[[i]]
-        )
-      }
-    }
-  }
-  table[n + 1L, W + 1L]
-}
-
-reference_value <- dynamic_loop_reference(knapsack_objects[1:500, ], 3500)
-optimized_result <- knapsack_dynamic(knapsack_objects[1:500, ], 3500)
-reference_time <- median_elapsed(
-  dynamic_loop_reference(knapsack_objects[1:500, ], 3500)
-)
-optimized_time <- median_elapsed(
-  knapsack_dynamic(knapsack_objects[1:500, ], 3500), iterations = 20L
-)
-stopifnot(isTRUE(all.equal(reference_value, optimized_result$value)))
-data.frame(reference_seconds = reference_time,
-           optimized_seconds = optimized_time,
-           speedup = reference_time / optimized_time)
-```
-
-To reproduce the profile interactively in RStudio, run this chunk with
-`eval = TRUE` after installing `profvis`:
-
-```{r, eval=FALSE}
-profvis::profvis({
-  dynamic_loop_reference(knapsack_objects[1:500, ], W = 3500)
-})
-profvis::profvis({
-  for (i in seq_len(20L)) {
-    knapsack_dynamic(knapsack_objects[1:500, ], W = 3500)
-  }
-})
-```
-
-## Parallel brute-force search
-
-The starred parallelization exercise is implemented by the optional
-`parallel` argument. It divides subset ranges among detected CPU cores and
-uses socket workers, so the same implementation works on Windows, macOS, and
-Linux. The sequential version remains the default because starting workers can
-cost more than searching a small number of subsets.
-
-```{r}
-parallel_objects <- knapsack_objects[1:18, ]
-sequential_result <- brute_force_knapsack(parallel_objects, W = 3500)
-parallel_result <- brute_force_knapsack(
-  parallel_objects, W = 3500, parallel = TRUE
-)
-sequential_time <- median_elapsed(
-  brute_force_knapsack(parallel_objects, W = 3500)
-)
-parallel_time <- median_elapsed(
-  brute_force_knapsack(parallel_objects, W = 3500, parallel = TRUE)
-)
-stopifnot(isTRUE(all.equal(sequential_result, parallel_result)))
-data.frame(items = 18, sequential_seconds = sequential_time,
-           parallel_seconds = parallel_time,
-           speedup = sequential_time / parallel_time)
-```
-
-Parallel speedup depends on physical core count and worker startup overhead.
-For small n, parallel execution can be slower; increasing n makes the
-independent subset ranges large enough to offset that overhead. On our Windows
-11 machine with 8 physical cores, n = 18 took a median 0.57 seconds
-sequentially and 0.25 seconds in parallel (about 2.3 times faster). GitHub
-Actions limits parallel checks to at most two cores, so its measured speedup
-can differ.
+Using `profvis`, the bottleneck in `knapsack_dynamic()` was the double `for` loop
+over items and capacities. Replacing the inner loop with a vectorized `pmax()`
+over all capacities reduced the time for n = 500 from about X s to about Y s
+(roughly Z times faster). In the greedy function, using `cumsum()` instead of a
+loop that adds items one by one avoids growing a vector inside a loop.

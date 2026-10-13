@@ -2,28 +2,22 @@
 % Please edit documentation in R/Knapsack_functions.R
 \name{brute_force_knapsack}
 \alias{brute_force_knapsack}
-\title{Solve the 0/1 knapsack problem by brute force}
+\title{Brute force knapsack}
 \usage{
 brute_force_knapsack(x, W, parallel = FALSE)
 }
 \arguments{
-\item{x}{A data frame with exactly two numeric columns, \code{v} (value) and
-\code{w} (weight). Values and weights must be finite and strictly positive.}
+\item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
 
-\item{W}{A finite, strictly positive numeric capacity.}
+\item{W}{Knapsack capacity (positive number).}
 
-\item{parallel}{Logical; distribute the search across detected cores when
-\code{TRUE}. The default is \code{FALSE}.}
+\item{parallel}{Logical. If TRUE, the search is split over all detected cores.}
 }
 \value{
-A list with \code{value}, the maximum feasible total value, and
-\code{elements}, the row indices of the selected items.
+A list with \code{value} (maximum total value) and \code{elements} (row indices chosen).
 }
 \description{
-Checks every non-empty subset and returns an exact solution. This method
-takes O(2^n) time and is intended for small inputs (at most 30 items).
-When \code{parallel = TRUE}, subset ranges are distributed across the detected
-CPU cores using a cross-platform socket cluster.
+Solves the 0/1 knapsack problem by checking all 2^n combinations.
 }
 \examples{
 x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))

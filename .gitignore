@@ -5,6 +5,3 @@
 .DS_Store
 .quarto
 inst/doc
-*.Rcheck/
-*.tar.gz
-*.Rprof

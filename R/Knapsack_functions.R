@@ -1,220 +1,114 @@
-#' Validate inputs shared by the knapsack solvers
-#'
-#' @param x A data frame with exactly two numeric columns, `v` (value) and
-#'   `w` (weight). Values and weights must be finite and strictly positive.
-#' @param W A finite, strictly positive numeric capacity.
+# ===== R/check_input.R =====
+#' Check knapsack input (internal)
+#' @param x data.frame with columns v and w
+#' @param W knapsack capacity
 #' @keywords internal
 check_input <- function(x, W) {
-  if (!is.data.frame(x)) {
-    stop("`x` must be a data frame.", call. = FALSE)
-  }
-  if (ncol(x) != 2L || anyDuplicated(names(x)) ||
-      !setequal(names(x), c("v", "w"))) {
-    stop("`x` must have exactly the columns `v` and `w`.", call. = FALSE)
-  }
-  if (!is.numeric(x$v) || is.complex(x$v) || !is.null(dim(x$v)) ||
-      !is.numeric(x$w) || is.complex(x$w) || !is.null(dim(x$w))) {
-    stop("Columns `v` and `w` must be numeric.", call. = FALSE)
-  }
-  if (anyNA(x$v) || anyNA(x$w) || any(!is.finite(x$v)) ||
-      any(!is.finite(x$w)) || any(x$v <= 0) || any(x$w <= 0)) {
-    stop("Columns `v` and `w` must contain finite positive values.",
-         call. = FALSE)
-  }
-  if (!is.numeric(W) || is.complex(W) || length(W) != 1L || is.na(W) ||
-      !is.finite(W) || W <= 0) {
-    stop("`W` must be one finite positive number.", call. = FALSE)
-  }
-
-  invisible(TRUE)
+  if (!is.data.frame(x)) stop("x must be a data.frame")
+  if (ncol(x) != 2 || !all(c("v", "w") %in% names(x))) stop("x must have exactly the columns v and w")
+  if (any(x$v <= 0) || any(x$w <= 0)) stop("v and w must be positive")
+  if (!is.numeric(W) || length(W) != 1 || W <= 0) stop("W must be a single positive number")
 }
 
-#' Solve the 0/1 knapsack problem by brute force
+#' Brute force knapsack
 #'
-#' Checks every non-empty subset and returns an exact solution. This method
-#' takes O(2^n) time and is intended for small inputs (at most 30 items).
-#' When `parallel = TRUE`, subset ranges are distributed across the detected
-#' CPU cores using a cross-platform socket cluster.
-#'
-#' @inheritParams check_input
-#' @param parallel Logical; distribute the search across detected cores when
-#'   `TRUE`. The default is `FALSE`.
-#' @return A list with `value`, the maximum feasible total value, and
-#'   `elements`, the row indices of the selected items.
+#' Solves the 0/1 knapsack problem by checking all 2^n combinations.
+#' @param x A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).
+#' @param W Knapsack capacity (positive number).
+#' @param parallel Logical. If TRUE, the search is split over all detected cores.
+#' @return A list with \code{value} (maximum total value) and \code{elements} (row indices chosen).
 #' @examples
 #' x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))
 #' brute_force_knapsack(x, W = 50)
 #' @export
 brute_force_knapsack <- function(x, W, parallel = FALSE) {
   check_input(x, W)
-  if (!is.logical(parallel) || length(parallel) != 1L || is.na(parallel)) {
-    stop("`parallel` must be TRUE or FALSE.", call. = FALSE)
-  }
+  n <- nrow(x); w <- x$w; v <- x$v
 
-  n <- nrow(x)
-  if (n == 0L) {
-    return(list(value = 0, elements = integer(0)))
-  }
-  if (n > 30L) {
-    stop("Brute force supports at most 30 items; use `knapsack_dynamic()` for larger inputs.",
-         call. = FALSE)
-  }
-
-  weights <- x$w
-  values <- x$v
-  number_of_subsets <- 2^n - 1
-
-  best_in_range <- function(bounds, weights, values, item_count, capacity) {
-    best_value <- 0
-    best_elements <- integer(0)
-    for (mask in seq.int(bounds[[1L]], bounds[[2L]])) {
-      chosen <- which(as.integer(intToBits(as.integer(mask)))[seq_len(item_count)] != 0L)
-      total_weight <- sum(weights[chosen])
-      if (total_weight <= capacity) {
-        total_value <- sum(values[chosen])
-        if (total_value > best_value) {
-          best_value <- total_value
-          best_elements <- chosen
-        }
+  # tìm phương án tốt nhất trong một đoạn các tổ hợp
+  best_in_range <- function(range) {
+    best_value <- 0; best_elements <- integer(0)
+    for (i in range) {
+      chosen <- which(intToBits(i)[1:n] == 1)
+      if (sum(w[chosen]) <= W) {
+        total_v <- sum(v[chosen])
+        if (total_v > best_value) { best_value <- total_v; best_elements <- chosen }
       }
     }
     list(value = best_value, elements = best_elements)
   }
-  environment(best_in_range) <- baseenv()
 
-  worker_count <- 1L
-  if (parallel) {
-    detected_cores <- suppressWarnings(parallel::detectCores(logical = FALSE))
-    if (length(detected_cores) != 1L || is.na(detected_cores) || detected_cores < 1L) {
-      detected_cores <- 1L
-    }
-    if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) {
-      detected_cores <- min(detected_cores, 2L)
-    }
-    worker_count <- min(as.integer(detected_cores), as.integer(number_of_subsets))
-  }
-
-  chunk_size <- ceiling(number_of_subsets / worker_count)
-  chunk_starts <- seq.int(1, number_of_subsets, by = chunk_size)
-  chunks <- lapply(chunk_starts, function(start) {
-    c(start, min(start + chunk_size - 1, number_of_subsets))
-  })
-
-  if (worker_count > 1L) {
-    cluster <- parallel::makeCluster(worker_count)
-    on.exit(parallel::stopCluster(cluster), add = TRUE)
-    results <- parallel::parLapply(
-      cluster, chunks, best_in_range,
-      weights = weights, values = values, item_count = n, capacity = W
-    )
+  all_i <- 1:(2^n - 1)
+  if (!parallel) {
+    res <- best_in_range(all_i)
   } else {
-    results <- lapply(
-      chunks, best_in_range,
-      weights = weights, values = values, item_count = n, capacity = W
-    )
-  }
+    cores <- parallel::detectCores()
+    if (is.na(cores)) cores <- 1L
+    # R CMD check (--as-cran) chỉ cho dùng tối đa 2 core
+    if (nzchar(Sys.getenv("_R_CHECK_LIMIT_CORES_"))) cores <- min(cores, 2L)
 
-  values_by_chunk <- vapply(results, `[[`, numeric(1), "value")
-  results[[which.max(values_by_chunk)]]
+    chunks <- split(all_i, cut(seq_along(all_i), cores, labels = FALSE))
+    if (.Platform$OS.type == "windows") {
+      cl <- parallel::makeCluster(cores)
+      on.exit(parallel::stopCluster(cl))
+      results <- parallel::parLapply(cl, chunks, best_in_range)
+    } else {
+      results <- parallel::mclapply(chunks, best_in_range, mc.cores = cores)
+    }
+    values <- vapply(results, function(r) r$value, numeric(1))
+    res <- results[[which.max(values)]]
+  }
+  list(value = round(res$value), elements = res$elements)
 }
 
-#' Solve the 0/1 knapsack problem by dynamic programming
+# ===== R/knapsack_dynamic.R =====
+#' Dynamic programming knapsack
 #'
-#' Returns an exact solution for integer weights and an integer capacity.
-#' Runtime is O(n W), with O(n W) logical backtracking storage and O(W)
-#' numeric value storage.
-#'
-#' @inheritParams check_input
-#' @return A list with `value`, the maximum feasible total value, and
-#'   `elements`, the row indices of the selected items.
+#' Solves the 0/1 knapsack problem exactly in O(W n) time (weights must be integers).
+#' @inheritParams brute_force_knapsack
+#' @return A list with \code{value} and \code{elements}.
 #' @examples
 #' x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))
 #' knapsack_dynamic(x, W = 50)
 #' @export
 knapsack_dynamic <- function(x, W) {
   check_input(x, W)
-  if (W != floor(W)) {
-    stop("`W` must be an integer for dynamic programming.", call. = FALSE)
-  }
-  if (W > .Machine$integer.max - 1) {
-    stop("`W` is too large to use as an R matrix dimension.", call. = FALSE)
-  }
-  if (any(x$w != floor(x$w))) {
-    stop("Weights in `x$w` must be integers for dynamic programming.",
-         call. = FALSE)
-  }
-
-  n <- nrow(x)
-  capacity <- as.integer(W)
-  # Clamp infeasible weights before integer conversion to avoid overflow for
-  # finite weights larger than R's integer range.
-  weights <- as.integer(pmin(x$w, capacity + 1))
-  values <- x$v
-  best <- numeric(capacity + 1L)
-  take_item <- matrix(FALSE, nrow = n, ncol = capacity + 1L)
-
-  for (i in seq_len(n)) {
-    item_weight <- weights[[i]]
-    if (item_weight <= capacity) {
-      current_indices <- seq.int(item_weight + 1L, capacity + 1L)
-      previous_indices <- current_indices - item_weight
-      candidate_values <- best[previous_indices] + values[[i]]
-      improves <- candidate_values > best[current_indices]
-      if (any(improves)) {
-        selected_indices <- current_indices[improves]
-        best[selected_indices] <- candidate_values[improves]
-        take_item[i, selected_indices] <- TRUE
-      }
+  n <- nrow(x); w <- x$w; v <- x$v
+  # row i+1 = using the first i items, column j+1 = capacity j
+  m <- matrix(0, nrow = n + 1, ncol = W + 1)
+  for (i in 1:n) {
+    m[i + 1, ] <- m[i, ]
+    if (w[i] <= W) {
+      idx <- (w[i] + 1):(W + 1)                       # vectorized inner loop
+      m[i + 1, idx] <- pmax(m[i, idx], m[i, idx - w[i]] + v[i])
     }
   }
-
-  selected <- logical(n)
-  remaining_capacity <- capacity
-  if (n > 0L) {
-    for (i in rev(seq_len(n))) {
-      if (take_item[i, remaining_capacity + 1L]) {
-        selected[[i]] <- TRUE
-        remaining_capacity <- remaining_capacity - weights[[i]]
-      }
+  # backtrack to find which items were used
+  elements <- integer(0); j <- W
+  for (i in n:1) {
+    if (m[i + 1, j + 1] != m[i, j + 1]) {
+      elements <- c(i, elements)
+      j <- j - w[i]
     }
   }
-
-  list(value = best[capacity + 1L], elements = which(selected))
+  list(value = round(m[n + 1, W + 1]), elements = elements)
 }
 
-#' Solve the 0/1 knapsack problem with a greedy approximation
+# ===== R/greedy_knapsack.R =====
+#' Greedy knapsack heuristic
 #'
-#' Sorts feasible items by value-to-weight ratio, takes the feasible prefix,
-#' and returns the better of that prefix and the best feasible single item.
-#' This standard 0/1 knapsack heuristic is O(n log n) and returns at least
-#' half of the optimal value.
-#'
-#' @inheritParams check_input
-#' @return A list with `value`, the total value selected, and `elements`, the
-#'   selected row indices. If no item fits, the value is zero and `elements`
-#'   is empty.
+#' Sorts items by value per weight and adds them until the next item does not fit.
+#' Guaranteed to give at least half the optimum (with the modified version), runs in O(n log n).
+#' @inheritParams brute_force_knapsack
+#' @return A list with \code{value} and \code{elements}.
 #' @examples
 #' x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))
 #' greedy_knapsack(x, W = 50)
 #' @export
 greedy_knapsack <- function(x, W) {
   check_input(x, W)
-  feasible <- which(x$w <= W)
-  if (length(feasible) == 0L) {
-    return(list(value = 0, elements = integer(0)))
-  }
-
-  ordered <- feasible[order(-x$v[feasible] / x$w[feasible], feasible)]
-  cumulative_weight <- cumsum(x$w[ordered])
-  prefix_length <- sum(cumulative_weight <= W)
-  prefix <- if (prefix_length > 0L) ordered[seq_len(prefix_length)] else integer(0)
-  best_single <- feasible[[which.max(x$v[feasible])]]
-
-  if (x$v[best_single] > sum(x$v[prefix])) {
-    elements <- best_single
-  } else {
-    elements <- prefix
-  }
-
-  list(value = sum(x$v[elements]), elements = elements)
+  ord <- order(x$v / x$w, decreasing = TRUE)
+  k <- sum(cumsum(x$w[ord]) <= W)
+  chosen <- ord[seq_len(k)]
+  list(value = round(sum(x$v[chosen])), elements = chosen)
 }
