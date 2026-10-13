@@ -1,60 +1,228 @@
 ---
-title: "lab_report_knapsack"
+title: "Knapsack algorithms: lab report"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{lab_report_knapsack}
+  %\VignetteIndexEntry{Knapsack algorithms: lab report}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r setup}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 library(knapsack)
-suppressWarnings(RNGversion(min(as.character(getRversion()), "3.5.3")))
-set.seed(42, kind = "Mersenne-Twister", normal.kind = "Inversion")
-n <- 2000
-knapsack_objects <- data.frame(w = sample(1:4000, size = n, replace = TRUE),
-                               v = runif(n = n, 0, 10000))
+set.seed(42)
+
+n <- 2000L
+knapsack_objects <- data.frame(
+  w = sample(1:4000, size = n, replace = TRUE),
+  v = runif(n, min = 0, max = 10000)
+)
+
+median_elapsed <- function(fun, repetitions = 3L) {
+  stats::median(replicate(
+    repetitions,
+    unname(system.time(fun())[["elapsed"]])
+  ))
+}
 ```
 
-## Brute force search
+The 0/1 knapsack problem selects a subset of items with total weight at most
+`W` and maximum total value. This report demonstrates the package's brute-force,
+dynamic-programming, and greedy functions, then measures the input sizes from
+the lab. Timings are measured when the vignette is built, so they reflect the
+computer and R version used for that build.
 
-```{r}
-brute_force_knapsack(x = knapsack_objects[1:8, ], W = 3500)
+## Brute-force search
+
+Brute force enumerates item subsets and returns an exact result. It is useful
+for small inputs and for checking the other algorithms.
+
+```{r brute-force-example}
+brute_force_knapsack(knapsack_objects[1:8, ], W = 3500)
 ```
 
-**Question:** How much time does it take to run the algorithm for n = 16 objects?
+For 16 items there are `2^16 - 1` non-empty subsets. The median elapsed time
+below is the answer for this run; the value changes with the computer and R
+version.
 
-```{r}
-system.time(brute_force_knapsack(x = knapsack_objects[1:16, ], W = 3500))
+```{r brute-force-timing}
+brute16_seconds <- median_elapsed(function() {
+  brute_force_knapsack(knapsack_objects[1:16, ], W = 3500)
+})
+data.frame(n = 16L, median_elapsed_seconds = brute16_seconds)
 ```
 
-Answer: about X seconds. The time doubles for every extra object, since there are 2^n combinations.
+The exponential number of subsets makes this method unsuitable for large `n`.
+The optional parallel extension splits the subset search among workers. The
+benchmark below compares sequential and parallel execution on the same 16-item
+input. Worker startup has a cost, so parallel execution can be slower for a
+small search.
+
+```{r parallel-brute-force}
+parallel_items <- knapsack_objects[1:16, ]
+sequential_seconds <- unname(system.time(
+  sequential_result <- brute_force_knapsack(parallel_items, W = 3500)
+)[["elapsed"]])
+parallel_seconds <- unname(system.time(
+  parallel_result <- brute_force_knapsack(
+    parallel_items, W = 3500, parallel = TRUE
+  )
+)[["elapsed"]])
+
+data.frame(
+  mode = c("sequential", "parallel"),
+  elapsed_seconds = c(sequential_seconds, parallel_seconds),
+  value = c(sequential_result$value, parallel_result$value)
+)
+```
+
+Both modes should return the same optimum. The measured ratio
+`r if (parallel_seconds > 0) sprintf("%.2f", sequential_seconds / parallel_seconds) else "not available"`
+is the sequential time divided by the parallel time; a ratio above 1 means
+parallel execution was faster on this run.
 
 ## Dynamic programming
 
-```{r}
-knapsack_dynamic(x = knapsack_objects[1:8, ], W = 3500)
-system.time(knapsack_dynamic(x = knapsack_objects[1:500, ], W = 3500))
+Dynamic programming is exact for integer weights and integer capacity. Its
+time complexity is O(nW). The package implementation updates all capacities
+for one item at a time with vectorized operations.
+
+```{r dynamic-example}
+knapsack_dynamic(knapsack_objects[1:8, ], W = 3500)
 ```
 
-Answer: about X seconds for n = 500. Time grows as O(W n).
+For the required case of 500 items and capacity 3,500, the following reports
+the median of three elapsed-time measurements.
+
+```{r dynamic-timing}
+dynamic_items <- knapsack_objects[1:500, ]
+dynamic_seconds <- median_elapsed(function() {
+  knapsack_dynamic(dynamic_items, W = 3500)
+})
+data.frame(n = 500L, W = 3500L, median_elapsed_seconds = dynamic_seconds)
+```
+
+### Profiling and optimization
+
+`profvis` can show where the dynamic solver spends time. The chunk profiles
+several calls so that the profiler has enough work to display. In this
+implementation, the capacity update is vectorized; replacing a capacity loop
+with vector operations reduces R-level loop overhead while keeping the same
+O(nW) time complexity.
+
+```{r profile-dynamic}
+profvis::profvis({
+  for (iteration in seq_len(5L)) {
+    knapsack_dynamic(dynamic_items, W = 3500)
+  }
+})
+```
+
+The following reference implementation uses a nested R loop over items and
+capacities. It is included only to make the optimization comparison
+reproducible; the package function remains the vectorized version.
+
+```{r dynamic-reference}
+knapsack_dynamic_reference <- function(x, W) {
+  n <- nrow(x)
+  weights <- x$w
+  values <- x$v
+  value_table <- matrix(0, nrow = n + 1L, ncol = W + 1L)
+
+  for (item in seq_len(n)) {
+    value_table[item + 1L, ] <- value_table[item, ]
+    if (weights[item] <= W) {
+      for (capacity in seq.int(weights[item], W)) {
+        column <- capacity + 1L
+        without_item <- value_table[item, column]
+        with_item <- value_table[item, capacity - weights[item] + 1L] +
+          values[item]
+        value_table[item + 1L, column] <- max(without_item, with_item)
+      }
+    }
+  }
+
+  selected <- integer(0)
+  remaining <- W
+  if (n > 0L) {
+    for (item in rev(seq_len(n))) {
+      if (value_table[item + 1L, remaining + 1L] !=
+          value_table[item, remaining + 1L]) {
+        selected <- c(item, selected)
+        remaining <- remaining - weights[item]
+      }
+    }
+  }
+
+  list(
+    value = round(value_table[n + 1L, W + 1L]),
+    elements = selected
+  )
+}
+
+reference_seconds <- median_elapsed(function() {
+  knapsack_dynamic_reference(dynamic_items, W = 3500)
+})
+vectorized_seconds <- median_elapsed(function() {
+  knapsack_dynamic(dynamic_items, W = 3500)
+})
+
+data.frame(
+  implementation = c("nested-loop reference", "vectorized package function"),
+  median_elapsed_seconds = c(reference_seconds, vectorized_seconds)
+)
+```
+
+On this build, the nested-loop reference took
+`r sprintf("%.3f", reference_seconds)` seconds and the vectorized function took
+`r sprintf("%.3f", vectorized_seconds)` seconds. The measured speed-up is
+`r if (vectorized_seconds > 0) sprintf("%.1f", reference_seconds / vectorized_seconds) else "not available"`x;
+it is specific to this machine and should be recalculated on other systems.
 
 ## Greedy heuristic
 
-```{r}
-greedy_knapsack(x = knapsack_objects[1:800, ], W = 3500)
-set.seed(42)
-big <- data.frame(w = sample(1:4000, size = 1e6, replace = TRUE),
-                  v = runif(n = 1e6, 0, 10000))
-system.time(greedy_knapsack(x = big, W = 3500))
+The greedy function sorts items by value-to-weight ratio and takes the
+consecutive prefix whose cumulative weight fits. Sorting makes this approach
+O(n log n), so it scales to large inputs.
+
+```{r greedy-example}
+greedy_knapsack(knapsack_objects[1:800, ], W = 3500)
 ```
 
-Answer: about X seconds for n = 1 000 000. Dominated by the sort, O(n log n).
+The required million-item benchmark is measured below.
 
-## Profiling and optimization
+```{r greedy-million}
+set.seed(42)
+large_items <- data.frame(
+  w = sample(1:4000, size = 1e6, replace = TRUE),
+  v = runif(1e6, min = 0, max = 10000)
+)
+greedy_seconds <- median_elapsed(function() {
+  greedy_knapsack(large_items, W = 3500)
+})
+data.frame(n = 1e6, median_elapsed_seconds = greedy_seconds)
+```
 
-Using `profvis`, the bottleneck in `knapsack_dynamic()` was the double `for` loop
-over items and capacities. Replacing the inner loop with a vectorized `pmax()`
-over all capacities reduced the time for n = 500 from about X s to about Y s
-(roughly Z times faster). In the greedy function, using `cumsum()` instead of a
-loop that adds items one by one avoids growing a vector inside a loop.
+This implementation is a heuristic rather than a guaranteed 1/2-approximation:
+it does not compare the selected prefix with the best feasible single item.
+For example, if the highest-ratio item is too heavy, the prefix can be empty
+even when another item fits.
+
+```{r greedy-limitation}
+limitation_example <- data.frame(w = c(11, 10), v = c(110, 80))
+greedy_knapsack(limitation_example, W = 10)
+```
+
+The second item is feasible, but the current prefix rule stops at the first
+item and returns an empty selection. This documents a remaining limitation of
+the reverted implementation; this report does not change the solver code.
+
+## Summary
+
+Brute force gives an exact answer for small inputs and can distribute work
+across workers. Dynamic programming is exact for integer weights and capacity
+and runs in O(nW); vectorizing the capacity update reduces interpreter
+overhead. The greedy function handles very large inputs quickly, but its
+current implementation does not have a formal approximation guarantee. The
+timing tables above are recalculated at vignette build time and are not
+portable performance promises.
