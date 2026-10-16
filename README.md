@@ -10,11 +10,11 @@ total weight does not exceed the capacity `W`.
 
 ## Install
 
-Install the development version from GitHub with `pak`:
+Install from GitHub and build the vignette so the lab report is available:
 
 ```r
-install.packages("pak")
-pak::pak("Tvths/knapsack")
+install.packages(c("remotes", "knitr", "rmarkdown", "profvis"))
+remotes::install_github("Tvths/knapsack", build_vignettes = TRUE)
 ```
 
 ## Example
@@ -33,28 +33,28 @@ greedy_knapsack(items, W = 50)
 ```
 
 Each function returns a list with `value` and `elements`. `value` is the
-selected total value rounded to the nearest integer; `elements` contains the
+selected total value without rounding; `elements` contains the
 selected row numbers from the input data frame.
 
 ## Algorithms and limits
 
 - `brute_force_knapsack()` checks subsets and returns an optimum. Its running
   time grows exponentially with the number of items, so use it for small
-  inputs. Set `parallel = TRUE` to split the search across workers; for small
+  inputs (at most 30 items). Set `parallel = TRUE` to split the search across workers; for small
   inputs, parallel startup can take longer than the search.
 - `knapsack_dynamic()` solves the problem exactly when item weights and `W`
   are positive integers. Its running time is O(nW), where `n` is the number of
   items.
-- `greedy_knapsack()` sorts items by value-to-weight ratio and takes the
-  consecutive prefix that fits. This is a heuristic. The current
-  implementation does not compare that prefix with the best feasible
-  single item, so it does not provide a formal 1/2-optimum guarantee; it can
-  also return no items when the first item in the sorted order is too heavy.
+- `greedy_knapsack()` sorts feasible items by value-to-weight ratio and takes
+  the prefix that fits. It returns the better of that prefix and the best
+  feasible single item, guaranteeing at least half of the optimum in O(n log n)
+  time.
 
 All solvers expect a data frame with positive numeric columns named `v` and
 `w`, and a positive capacity `W`. Dynamic programming additionally requires
-integer weights and an integer capacity. The current input checks do not cover
-every malformed or non-finite input, so pass finite, valid data.
+integer weights and an integer capacity. Non-numeric, missing, non-finite,
+and non-positive values are rejected. Empty inputs or inputs where no item
+fits return zero value and no elements.
 
 ## Tests, checks, and report
 

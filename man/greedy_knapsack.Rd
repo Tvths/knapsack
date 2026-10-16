@@ -7,16 +7,17 @@
 greedy_knapsack(x, W)
 }
 \arguments{
-\item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
+\item{x}{A data.frame with finite positive numeric columns \code{v} (value) and \code{w} (weight).}
 
-\item{W}{Knapsack capacity (positive number).}
+\item{W}{Knapsack capacity (one finite positive number).}
 }
 \value{
 A list with \code{value} and \code{elements}.
 }
 \description{
-Sorts items by value per weight and adds them until the next item does not fit.
-Guaranteed to give at least half the optimum (with the modified version), runs in O(n log n).
+Sorts feasible items by value per weight and takes the prefix that fits.
+Returns the better of that prefix and the best feasible single item, which
+guarantees at least half the optimum. Runs in O(n log n).
 }
 \examples{
 x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))

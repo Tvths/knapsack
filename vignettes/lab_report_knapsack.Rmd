@@ -163,7 +163,7 @@ knapsack_dynamic_reference <- function(x, W) {
   }
 
   list(
-    value = round(value_table[n + 1L, W + 1L]),
+    value = value_table[n + 1L, W + 1L],
     elements = selected
   )
 }
@@ -189,12 +189,14 @@ it is specific to this machine and should be recalculated on other systems.
 
 ## Greedy heuristic
 
-The greedy function sorts items by value-to-weight ratio and takes the
-consecutive prefix whose cumulative weight fits. Sorting makes this approach
-O(n log n), so it scales to large inputs.
+The greedy function removes individually infeasible items, sorts the remaining
+items by value-to-weight ratio, and takes the prefix whose cumulative weight
+fits. It returns the better of that prefix and the best feasible single item.
+Sorting makes this approach O(n log n), so it scales to large inputs.
 
 ```{r greedy-example}
 greedy_knapsack(knapsack_objects[1:800, ], W = 3500)
+greedy_knapsack(knapsack_objects[1:1200, ], W = 2000)
 ```
 
 The required million-item benchmark is measured below.
@@ -211,26 +213,34 @@ greedy_seconds <- median_elapsed(function() {
 data.frame(n = 1e6, median_elapsed_seconds = greedy_seconds)
 ```
 
-This implementation is a heuristic rather than a guaranteed 1/2-approximation:
-it does not compare the selected prefix with the best feasible single item.
-For example, if the highest-ratio item is too heavy, the prefix can be empty
-even when another item fits.
+The comparison with the best single item gives a 1/2-approximation. The
+fractional-knapsack upper bound is at most the value of the selected prefix
+plus the value of the next item. The best feasible single item is worth at
+least as much as that next item, so the better of the two candidates is at
+least half the true optimum. If all items fit, the prefix itself is optimal.
 
-```{r greedy-limitation}
-limitation_example <- data.frame(w = c(11, 10), v = c(110, 80))
-greedy_knapsack(limitation_example, W = 10)
+Two small examples show why both filtering infeasible items and comparing
+with the best single item matter.
+
+```{r greedy-edge-examples}
+heavy_first <- data.frame(w = c(11, 10), v = c(110, 80))
+greedy_knapsack(heavy_first, W = 10)
+
+single_is_better <- data.frame(w = c(6, 10), v = c(7, 10))
+greedy_knapsack(single_is_better, W = 10)
 ```
 
-The second item is feasible, but the current prefix rule stops at the first
-item and returns an empty selection. This documents a remaining limitation of
-the reverted implementation; this report does not change the solver code.
+In the first example, the second item fits even though the highest-ratio item
+is too heavy. In the second example, the density prefix has value 7, while the
+best feasible single item has value 10. Values are returned without rounding;
+round them only when comparing with the printed integer examples in the lab.
 
 ## Summary
 
 Brute force gives an exact answer for small inputs and can distribute work
 across workers. Dynamic programming is exact for integer weights and capacity
 and runs in O(nW); vectorizing the capacity update reduces interpreter
-overhead. The greedy function handles very large inputs quickly, but its
-current implementation does not have a formal approximation guarantee. The
+overhead. The greedy function handles very large inputs quickly and guarantees
+at least half of the optimum by also considering the best single item. The
 timing tables above are recalculated at vignette build time and are not
 portable performance promises.

@@ -7,15 +7,19 @@
 knapsack_dynamic(x, W)
 }
 \arguments{
-\item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
+\item{x}{A data.frame with finite positive numeric columns \code{v} (value) and \code{w} (weight).}
 
-\item{W}{Knapsack capacity (positive number).}
+\item{W}{Knapsack capacity (one finite positive number).}
 }
 \value{
 A list with \code{value} and \code{elements}.
 }
 \description{
 Solves the 0/1 knapsack problem exactly in O(W n) time (weights must be integers).
+}
+\details{
+Both weights and capacity must be integers. The matrix uses O(n W)
+memory, so large capacities can require substantial memory.
 }
 \examples{
 x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))

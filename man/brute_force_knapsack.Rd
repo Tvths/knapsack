@@ -7,17 +7,20 @@
 brute_force_knapsack(x, W, parallel = FALSE)
 }
 \arguments{
-\item{x}{A data.frame with positive numeric columns \code{v} (value) and \code{w} (weight).}
+\item{x}{A data.frame with finite positive numeric columns \code{v} (value) and \code{w} (weight).}
 
-\item{W}{Knapsack capacity (positive number).}
+\item{W}{Knapsack capacity (one finite positive number).}
 
 \item{parallel}{Logical. If TRUE, the search is split over all detected cores.}
 }
 \value{
-A list with \code{value} (maximum total value) and \code{elements} (row indices chosen).
+A list with \code{value} (maximum total value, without rounding) and
+\code{elements} (row indices chosen). Empty or infeasible inputs return zero
+value and no elements.
 }
 \description{
-Solves the 0/1 knapsack problem by checking all 2^n combinations.
+Solves the 0/1 knapsack problem by checking all non-empty subsets.
+This exponential search supports at most 30 items and is intended for small inputs.
 }
 \examples{
 x <- data.frame(w = c(10, 20, 30), v = c(60, 100, 120))

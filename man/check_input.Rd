@@ -7,9 +7,9 @@
 check_input(x, W)
 }
 \arguments{
-\item{x}{data.frame with columns v and w}
+\item{x}{A data.frame with exactly two finite, positive numeric columns v and w.}
 
-\item{W}{knapsack capacity}
+\item{W}{One finite, positive numeric knapsack capacity.}
 }
 \description{
 Check knapsack input (internal)
